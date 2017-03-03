@@ -41,11 +41,14 @@
 //! //  + can be created at runtime
 //! //  + can be shared between threads
 //! //  - space overhead is 2*usize (pointer + strong count)
-//! use rcstring::ArcCStr;
+//! use arccstr::ArcCStr;
 //! let s = ArcCStr::from("foobar");
 //! ```
 //!
 //! See the [`ArcCStr`][arc] documentation for more details.
+//!
+//! Note that this crate requires a nightly build of the compiler as it plays a lot of memory
+//! tricks.
 //!
 //! [arc]: struct.ArcCStr.html
 
@@ -100,7 +103,7 @@ const MAX_REFCOUNT: usize = (isize::MAX) as usize;
 /// syntax:
 ///
 /// ```
-/// use rcstring::ArcCStr;
+/// use arccstr::ArcCStr;
 /// let mut my_arc = ArcCStr::from("foobar");
 /// ArcCStr::strong_count(&my_arc);
 /// ```
@@ -122,7 +125,7 @@ const MAX_REFCOUNT: usize = (isize::MAX) as usize;
 // (something deadlocks) so we just avoid this entirely by not running these
 // tests.
 /// ```no_run
-/// use rcstring::ArcCStr;
+/// use arccstr::ArcCStr;
 /// use std::thread;
 ///
 /// let five = ArcCStr::from("5");
@@ -208,7 +211,7 @@ impl ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// use rcstring::ArcCStr;
+    /// use arccstr::ArcCStr;
     ///
     /// let five = ArcCStr::from("5");
     /// let _also_five = five.clone();
@@ -250,7 +253,7 @@ impl ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// use rcstring::ArcCStr;
+    /// use arccstr::ArcCStr;
     ///
     /// let five = ArcCStr::from("5");
     /// let same_five = five.clone();
@@ -272,7 +275,7 @@ impl Clone for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// use rcstring::ArcCStr;
+    /// use arccstr::ArcCStr;
     ///
     /// let five = ArcCStr::from("5");
     ///
@@ -341,7 +344,7 @@ impl Drop for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// use rcstring::ArcCStr;
+    /// use arccstr::ArcCStr;
     ///
     /// let foo  = ArcCStr::from("foo");
     /// let foo2 = foo.clone();
@@ -390,7 +393,7 @@ impl PartialEq for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// use rcstring::ArcCStr;
+    /// use arccstr::ArcCStr;
     ///
     /// let five = ArcCStr::from("5");
     ///
@@ -407,7 +410,7 @@ impl PartialEq for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// use rcstring::ArcCStr;
+    /// use arccstr::ArcCStr;
     ///
     /// let five = ArcCStr::from("5");
     ///
@@ -425,7 +428,7 @@ impl PartialOrd for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// use rcstring::ArcCStr;
+    /// use arccstr::ArcCStr;
     /// use std::cmp::Ordering;
     ///
     /// let five = ArcCStr::from("5");
@@ -443,7 +446,7 @@ impl PartialOrd for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// use rcstring::ArcCStr;
+    /// use arccstr::ArcCStr;
     ///
     /// let five = ArcCStr::from("5");
     ///
@@ -460,7 +463,7 @@ impl PartialOrd for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// use rcstring::ArcCStr;
+    /// use arccstr::ArcCStr;
     ///
     /// let five = ArcCStr::from("5");
     ///
@@ -477,7 +480,7 @@ impl PartialOrd for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// use rcstring::ArcCStr;
+    /// use arccstr::ArcCStr;
     ///
     /// let five = ArcCStr::from("5");
     ///
@@ -494,7 +497,7 @@ impl PartialOrd for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// use rcstring::ArcCStr;
+    /// use arccstr::ArcCStr;
     ///
     /// let five = ArcCStr::from("5");
     ///
@@ -512,7 +515,7 @@ impl Ord for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// use rcstring::ArcCStr;
+    /// use arccstr::ArcCStr;
     /// use std::cmp::Ordering;
     ///
     /// let five = ArcCStr::from("5");

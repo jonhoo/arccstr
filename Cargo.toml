@@ -1,6 +1,22 @@
 [package]
-name = "rcstring"
+name = "arccstr"
 version = "0.1.0"
+
+description = "Thread-safe, reference-counted null-terminated immutable strings."
+readme = "README.md"
+
 authors = ["Jon Gjengset <jon@thesquareplanet.com>"]
+
+documentation = "https://docs.rs/arccstr"
+homepage = "https://github.com/jonhoo/arccstr"
+repository = "https://github.com/jonhoo/arccstr.git"
+
+keywords = ["strings", "reference-counting", "cstr", "immutability"]
+categories = ["concurrency", "data-structures", "memory-management"]
+
+license = "MIT/Apache-2.0"
+
+[badges]
+travis-ci = { repository = "jonhoo/arccstr" }
 
 [dependencies]
