@@ -97,9 +97,9 @@ const MAX_REFCOUNT: usize = (isize::MAX) as usize;
 /// threads accessing the same data, you may see contention. However, in the common case, using
 /// `ArcCStr` should still be faster than cloning the full string.
 ///
-/// `ArcCStr` automatically dereferences to `CStr` (via the [`Deref`] trait), so you can call
-/// `CStr`'s methods on a value of type `ArcCStr`. To avoid name clashes with `CStr`'s methods, the
-/// methods of `ArcCStr` itself are [associated functions][assoc], called using function-like
+/// `ArcCStr` automatically dereferences to [`CStr`] (via the [`Deref`] trait), so you can call
+/// [`CStr`]'s methods on a value of type `ArcCStr`. To avoid name clashes with [`CStr`]'s methods,
+/// the methods of `ArcCStr` itself are [associated functions][assoc], called using function-like
 /// syntax:
 ///
 /// ```
