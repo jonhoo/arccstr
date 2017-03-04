@@ -55,6 +55,11 @@
 #![feature(shared, core_intrinsics, alloc, heap_api, unique)]
 extern crate alloc;
 
+#[cfg(feature = "serde")]
+extern crate serde;
+#[cfg(all(test, feature = "serde"))]
+extern crate serde_test;
+
 use std::sync::atomic;
 use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
 use std::borrow;
@@ -147,29 +152,7 @@ unsafe impl Sync for ArcCStr {}
 
 impl<'a> From<&'a [u8]> for ArcCStr {
     fn from(b: &'a [u8]) -> Self {
-        let blen = b.len() as isize;
-        let aus = size_of::<atomic::AtomicUsize>() as isize;
-        let mut s = unsafe {
-            ptr::Unique::new(heap::allocate((aus + blen + 1) as usize,
-                                            align_of::<atomic::AtomicUsize>()))
-        };
-        // Initialize the AtomicUsize to 1
-        {
-            let s: &mut atomic::AtomicUsize = unsafe { mem::transmute(s.get_mut()) };
-            s.store(1, SeqCst);
-        }
-        // Fill in the string
-        let mut s = unsafe {
-            let buf = s.offset(aus);
-            ptr::copy_nonoverlapping(&b[0] as *const _, buf, b.len());
-            buf.offset(blen)
-        };
-        // Add \0
-        unsafe {
-            *s = 0u8;
-            let s = s.offset(-blen).offset(-aus);
-            ArcCStr { ptr: Shared::new(s) }
-        }
+        unsafe { ArcCStr::from_raw_cstr_no_nul(b) }
     }
 }
 
@@ -200,6 +183,27 @@ impl<'a> From<&'a CStr> for ArcCStr {
 }
 
 impl ArcCStr {
+    unsafe fn from_raw_cstr_no_nul(buf: &[u8]) -> Self {
+        let aus = size_of::<atomic::AtomicUsize>();
+        let aual = align_of::<atomic::AtomicUsize>();
+        let sz = aus + buf.len() + 1;
+
+        let mut s = ptr::Unique::new(heap::allocate(sz, aual));
+        // initialize the AtomicUsize to 1
+        {
+            let atom: &mut atomic::AtomicUsize = mem::transmute(s.get_mut());
+            atom.store(1, SeqCst);
+        }
+        // copy in the string data
+        ptr::copy_nonoverlapping(buf.as_ptr(), s.offset(aus as isize), buf.len());
+        // add \0 terminator
+        *s.offset(aus as isize).offset(buf.len() as isize) = 0u8;
+        // and we're all good
+        ArcCStr { ptr: Shared::new(s.offset(0)) }
+
+        // TODO: check if string internally contains any NULLs!
+    }
+
     /// Gets the number of pointers to this string.
     ///
     /// # Safety
@@ -558,6 +562,49 @@ impl AsRef<CStr> for ArcCStr {
     }
 }
 
+#[cfg(feature = "serde")]
+impl serde::Serialize for ArcCStr {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: serde::Serializer
+    {
+        use std::slice;
+
+        // TODO
+        // it's unfortunate that we have to walk the string twice here;
+        // once to find the length, then once more to serialize...
+        let aus = size_of::<atomic::AtomicUsize>();
+        let len = self.to_bytes().len();
+        let bytes = unsafe { slice::from_raw_parts(self.ptr.offset(aus as isize), len) };
+        serializer.serialize_bytes(bytes)
+    }
+}
+
+struct ArcCStrVisitor;
+
+impl serde::de::Visitor for ArcCStrVisitor {
+    type Value = ArcCStr;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a C-style string with no nulls as serialized bytes")
+    }
+
+    #[inline]
+    fn visit_bytes<E>(self, v: &[u8]) -> Result<ArcCStr, E>
+        where E: serde::de::Error
+    {
+        Ok(unsafe { ArcCStr::from_raw_cstr_no_nul(v) })
+    }
+}
+
+#[cfg(feature = "serde")]
+impl serde::Deserialize for ArcCStr {
+    fn deserialize<D>(deserializer: D) -> Result<ArcCStr, D::Error>
+        where D: serde::Deserializer
+    {
+        deserializer.deserialize_bytes(ArcCStrVisitor)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::clone::Clone;
@@ -605,5 +652,15 @@ mod tests {
 
         assert!(ArcCStr::ptr_eq(&five, &same_five));
         assert!(!ArcCStr::ptr_eq(&five, &other_five));
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_serde() {
+        use serde_test::{Token, assert_tokens};
+        let five = ArcCStr::from("5");
+        assert_tokens(&five, &[Token::Bytes(b"5")]);
+        let non = ArcCStr::from("");
+        assert_tokens(&non, &[Token::Bytes(b"")]);
     }
 }

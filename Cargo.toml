@@ -1,6 +1,6 @@
 [package]
 name = "arccstr"
-version = "0.1.1"
+version = "0.2.0"
 
 description = "Thread-safe, reference-counted null-terminated immutable strings."
 readme = "README.md"
@@ -16,7 +16,14 @@ categories = ["concurrency", "data-structures", "memory-management"]
 
 license = "MIT/Apache-2.0"
 
+[features]
+default = ["serde"]
+
 [badges]
 travis-ci = { repository = "jonhoo/arccstr" }
 
 [dependencies]
+serde = { version = "0.9.10", optional = true }
+
+[dev-dependencies]
+serde_test = "0.9.10"
