@@ -4,6 +4,8 @@
 //! The best illustration of this is to go over the alternatives:
 //!
 //! ```rust
+//! #![feature(try_from)]
+//! # use std::convert::TryFrom;
 //! // &str:
 //! //  - content must be known at compile time
 //! //  + can be shared between threads
@@ -18,11 +20,13 @@
 //! // CString:
 //! //  * mostly same as String
 //! //  * space overhead is 2*usize (uses Box<[u8]> internally)
+//! //  - cannot contain internal \0 bytes
 //! use std::ffi::CString;
 //! let s = CString::new("foobar").unwrap();
 //! // CStr:
 //! //  + space overhead is just the pointer (1*usize)
 //! //  - hard to construct
+//! //  - cannot contain internal \0 bytes
 //! //  - generally cannot be shared between threds (lifetime usually not 'static)
 //! use std::ffi::CStr;
 //! let s: &CStr = &*s;
@@ -36,13 +40,14 @@
 //! //     - pointer to String
 //! //     - String overhead (3*usize)
 //! use std::sync::Arc;
-//! let s = ArcCStr::from(format!("foobar"));
+//! let s = ArcCStr::try_from(format!("foobar")).unwrap();
 //! // ArcCStr:
 //! //  + can be created at runtime
 //! //  + can be shared between threads
 //! //  - space overhead is 2*usize (pointer + strong count)
+//! //  - cannot contain internal \0 bytes
 //! use arccstr::ArcCStr;
-//! let s = ArcCStr::from("foobar");
+//! let s = ArcCStr::try_from("foobar").unwrap();
 //! ```
 //!
 //! See the [`ArcCStr`][arc] documentation for more details.
@@ -52,7 +57,7 @@
 //!
 //! [arc]: struct.ArcCStr.html
 
-#![feature(shared, core_intrinsics, alloc, heap_api, unique)]
+#![feature(shared, core_intrinsics, alloc, heap_api, unique, try_from)]
 extern crate alloc;
 
 #[cfg(feature = "serde")]
@@ -108,8 +113,10 @@ const MAX_REFCOUNT: usize = (isize::MAX) as usize;
 /// syntax:
 ///
 /// ```
+/// #![feature(try_from)]
 /// use arccstr::ArcCStr;
-/// let mut my_arc = ArcCStr::from("foobar");
+/// use std::convert::TryFrom;
+/// let mut my_arc = ArcCStr::try_from("foobar").unwrap();
 /// ArcCStr::strong_count(&my_arc);
 /// ```
 ///
@@ -130,10 +137,12 @@ const MAX_REFCOUNT: usize = (isize::MAX) as usize;
 // (something deadlocks) so we just avoid this entirely by not running these
 // tests.
 /// ```no_run
+/// #![feature(try_from)]
+/// use std::convert::TryFrom;
 /// use arccstr::ArcCStr;
 /// use std::thread;
 ///
-/// let five = ArcCStr::from("5");
+/// let five = ArcCStr::try_from("5").unwrap();
 ///
 /// for _ in 0..10 {
 ///     let five = five.clone();
@@ -147,61 +156,76 @@ pub struct ArcCStr {
     ptr: Shared<u8>,
 }
 
+use std::ffi::FromBytesWithNulError;
+
 unsafe impl Send for ArcCStr {}
 unsafe impl Sync for ArcCStr {}
 
-impl<'a> From<&'a [u8]> for ArcCStr {
-    fn from(b: &'a [u8]) -> Self {
+use std::convert::TryFrom;
+impl<'a> TryFrom<&'a [u8]> for ArcCStr {
+    type Err = FromBytesWithNulError;
+    fn try_from(b: &'a [u8]) -> Result<Self, Self::Err> {
         unsafe { ArcCStr::from_raw_cstr_no_nul(b) }
     }
 }
 
-impl<'a> From<&'a str> for ArcCStr {
-    fn from(s: &'a str) -> Self {
-        Self::from(s.as_bytes())
+impl<'a> TryFrom<&'a str> for ArcCStr {
+    type Err = FromBytesWithNulError;
+    fn try_from(s: &'a str) -> Result<Self, Self::Err> {
+        unsafe { ArcCStr::from_raw_cstr_no_nul(s.as_bytes()) }
     }
 }
 
-impl From<String> for ArcCStr {
-    fn from(s: String) -> Self {
-        Self::from(&*s)
+impl TryFrom<String> for ArcCStr {
+    type Err = FromBytesWithNulError;
+    fn try_from(s: String) -> Result<Self, Self::Err> {
+        unsafe { ArcCStr::from_raw_cstr_no_nul(s.as_bytes()) }
     }
 }
 
 use std::ffi::CString;
 impl From<CString> for ArcCStr {
     fn from(s: CString) -> Self {
-        Self::from(&*s)
+        unsafe { ArcCStr::from_raw_cstr_no_nul_unchecked(s.to_bytes()) }
     }
 }
 
 use std::ffi::CStr;
 impl<'a> From<&'a CStr> for ArcCStr {
     fn from(s: &'a CStr) -> Self {
-        Self::from(s.to_bytes())
+        unsafe { ArcCStr::from_raw_cstr_no_nul_unchecked(s.to_bytes()) }
     }
 }
 
 impl ArcCStr {
-    unsafe fn from_raw_cstr_no_nul(buf: &[u8]) -> Self {
+    unsafe fn from_raw_cstr_no_nul(buf: &[u8]) -> Result<Self, FromBytesWithNulError> {
+        // check that buf doesn't contain any internal \0s
+        if buf.iter().any(|&b| b == 0) {
+            // we can't manually construct a FromBytesWithNulError :(
+            CStr::from_bytes_with_nul(&[0, 0])?;
+        }
+
+        Ok(Self::from_raw_cstr_no_nul_unchecked(buf))
+    }
+
+    unsafe fn from_raw_cstr_no_nul_unchecked(buf: &[u8]) -> Self {
         let aus = size_of::<atomic::AtomicUsize>();
         let aual = align_of::<atomic::AtomicUsize>();
         let sz = aus + buf.len() + 1;
 
         let mut s = ptr::Unique::new(heap::allocate(sz, aual));
+        let cstr = s.offset(aus as isize);
         // initialize the AtomicUsize to 1
         {
             let atom: &mut atomic::AtomicUsize = mem::transmute(s.get_mut());
             atom.store(1, SeqCst);
         }
         // copy in the string data
-        ptr::copy_nonoverlapping(buf.as_ptr(), s.offset(aus as isize), buf.len());
+        ptr::copy_nonoverlapping(buf.as_ptr(), cstr, buf.len());
         // add \0 terminator
-        *s.offset(aus as isize).offset(buf.len() as isize) = 0u8;
+        *cstr.offset(buf.len() as isize) = 0u8;
         // and we're all good
         ArcCStr { ptr: Shared::new(s.offset(0)) }
-
-        // TODO: check if string internally contains any NULLs!
     }
 
     /// Gets the number of pointers to this string.
@@ -215,9 +239,11 @@ impl ArcCStr {
     /// # Examples
     ///
     /// ```
+    /// #![feature(try_from)]
+    /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
-    /// let five = ArcCStr::from("5");
+    /// let five = ArcCStr::try_from("5").unwrap();
     /// let _also_five = five.clone();
     ///
     /// // This assertion is deterministic because we haven't shared
@@ -257,11 +283,13 @@ impl ArcCStr {
     /// # Examples
     ///
     /// ```
+    /// #![feature(try_from)]
+    /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
-    /// let five = ArcCStr::from("5");
+    /// let five = ArcCStr::try_from("5").unwrap();
     /// let same_five = five.clone();
-    /// let other_five = ArcCStr::from("5");
+    /// let other_five = ArcCStr::try_from("5").unwrap();
     ///
     /// assert!(ArcCStr::ptr_eq(&five, &same_five));
     /// assert!(!ArcCStr::ptr_eq(&five, &other_five));
@@ -279,9 +307,11 @@ impl Clone for ArcCStr {
     /// # Examples
     ///
     /// ```
+    /// #![feature(try_from)]
+    /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
-    /// let five = ArcCStr::from("5");
+    /// let five = ArcCStr::try_from("5").unwrap();
     ///
     /// five.clone();
     /// ```
@@ -348,9 +378,11 @@ impl Drop for ArcCStr {
     /// # Examples
     ///
     /// ```
+    /// #![feature(try_from)]
+    /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
-    /// let foo  = ArcCStr::from("foo");
+    /// let foo  = ArcCStr::try_from("foo").unwrap();
     /// let foo2 = foo.clone();
     ///
     /// drop(foo);    // "foo" is still in memory
@@ -397,11 +429,13 @@ impl PartialEq for ArcCStr {
     /// # Examples
     ///
     /// ```
+    /// #![feature(try_from)]
+    /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
-    /// let five = ArcCStr::from("5");
+    /// let five = ArcCStr::try_from("5");
     ///
-    /// assert!(five == ArcCStr::from("5"));
+    /// assert!(five == ArcCStr::try_from("5"));
     /// ```
     fn eq(&self, other: &ArcCStr) -> bool {
         *(*self) == *(*other)
@@ -414,11 +448,13 @@ impl PartialEq for ArcCStr {
     /// # Examples
     ///
     /// ```
+    /// #![feature(try_from)]
+    /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
-    /// let five = ArcCStr::from("5");
+    /// let five = ArcCStr::try_from("5");
     ///
-    /// assert!(five != ArcCStr::from("6"));
+    /// assert!(five != ArcCStr::try_from("6"));
     /// ```
     fn ne(&self, other: &ArcCStr) -> bool {
         *(*self) != *(*other)
@@ -432,12 +468,14 @@ impl PartialOrd for ArcCStr {
     /// # Examples
     ///
     /// ```
+    /// #![feature(try_from)]
     /// use arccstr::ArcCStr;
     /// use std::cmp::Ordering;
+    /// use std::convert::TryFrom;
     ///
-    /// let five = ArcCStr::from("5");
+    /// let five = ArcCStr::try_from("5").unwrap();
     ///
-    /// assert_eq!(Some(Ordering::Less), five.partial_cmp(&ArcCStr::from("6")));
+    /// assert_eq!(Some(Ordering::Less), five.partial_cmp(&ArcCStr::try_from("6").unwrap()));
     /// ```
     fn partial_cmp(&self, other: &ArcCStr) -> Option<Ordering> {
         (**self).partial_cmp(&**other)
@@ -450,11 +488,13 @@ impl PartialOrd for ArcCStr {
     /// # Examples
     ///
     /// ```
+    /// #![feature(try_from)]
+    /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
-    /// let five = ArcCStr::from("5");
+    /// let five = ArcCStr::try_from("5").unwrap();
     ///
-    /// assert!(five < ArcCStr::from("6"));
+    /// assert!(five < ArcCStr::try_from("6").unwrap());
     /// ```
     fn lt(&self, other: &ArcCStr) -> bool {
         *(*self) < *(*other)
@@ -467,11 +507,13 @@ impl PartialOrd for ArcCStr {
     /// # Examples
     ///
     /// ```
+    /// #![feature(try_from)]
+    /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
-    /// let five = ArcCStr::from("5");
+    /// let five = ArcCStr::try_from("5").unwrap();
     ///
-    /// assert!(five <= ArcCStr::from("5"));
+    /// assert!(five <= ArcCStr::try_from("5").unwrap());
     /// ```
     fn le(&self, other: &ArcCStr) -> bool {
         *(*self) <= *(*other)
@@ -484,11 +526,13 @@ impl PartialOrd for ArcCStr {
     /// # Examples
     ///
     /// ```
+    /// #![feature(try_from)]
+    /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
-    /// let five = ArcCStr::from("5");
+    /// let five = ArcCStr::try_from("5").unwrap();
     ///
-    /// assert!(five > ArcCStr::from("4"));
+    /// assert!(five > ArcCStr::try_from("4").unwrap());
     /// ```
     fn gt(&self, other: &ArcCStr) -> bool {
         *(*self) > *(*other)
@@ -501,11 +545,13 @@ impl PartialOrd for ArcCStr {
     /// # Examples
     ///
     /// ```
+    /// #![feature(try_from)]
+    /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
-    /// let five = ArcCStr::from("5");
+    /// let five = ArcCStr::try_from("5").unwrap();
     ///
-    /// assert!(five >= ArcCStr::from("5"));
+    /// assert!(five >= ArcCStr::try_from("5").unwrap());
     /// ```
     fn ge(&self, other: &ArcCStr) -> bool {
         *(*self) >= *(*other)
@@ -519,12 +565,14 @@ impl Ord for ArcCStr {
     /// # Examples
     ///
     /// ```
+    /// #![feature(try_from)]
     /// use arccstr::ArcCStr;
     /// use std::cmp::Ordering;
+    /// use std::convert::TryFrom;
     ///
-    /// let five = ArcCStr::from("5");
+    /// let five = ArcCStr::try_from("5").unwrap();
     ///
-    /// assert_eq!(Ordering::Less, five.cmp(&ArcCStr::from("6")));
+    /// assert_eq!(Ordering::Less, five.cmp(&ArcCStr::try_from("6").unwrap()));
     /// ```
     fn cmp(&self, other: &ArcCStr) -> Ordering {
         (**self).cmp(&**other)
@@ -592,7 +640,13 @@ impl serde::de::Visitor for ArcCStrVisitor {
     fn visit_bytes<E>(self, v: &[u8]) -> Result<ArcCStr, E>
         where E: serde::de::Error
     {
-        Ok(unsafe { ArcCStr::from_raw_cstr_no_nul(v) })
+        unsafe { ArcCStr::from_raw_cstr_no_nul(v) }
+            .map_err(|_| {
+                serde::de::Error::invalid_value(
+                    serde::de::Unexpected::Bytes(v),
+                    &"a null-terminated, UTF-encoded string with no internal nulls"
+                )
+            })
     }
 }
 
@@ -611,13 +665,13 @@ mod tests {
     use std::sync::mpsc::channel;
     use std::thread;
     use super::ArcCStr;
-    use std::convert::From;
+    use std::convert::TryFrom;
 
     #[test]
     #[cfg_attr(target_os = "emscripten", ignore)]
     fn manually_share_arc() {
         let v = "0123456789";
-        let arc_v = ArcCStr::from(v);
+        let arc_v = ArcCStr::try_from(v).unwrap();
 
         let (tx, rx) = channel();
 
@@ -634,33 +688,67 @@ mod tests {
 
     #[test]
     fn show_arc() {
-        let a = ArcCStr::from("foo");
+        let a = ArcCStr::try_from("foo").unwrap();
         assert_eq!(format!("{:?}", a), "\"foo\"");
     }
 
     #[test]
     fn test_from_string() {
-        let foo_arc = ArcCStr::from(format!("foo"));
+        let foo_arc = ArcCStr::try_from(format!("foo")).unwrap();
         assert!("foo" == foo_arc.to_string_lossy());
     }
 
     #[test]
     fn test_ptr_eq() {
-        let five = ArcCStr::from("5");
+        let five = ArcCStr::try_from("5").unwrap();
         let same_five = five.clone();
-        let other_five = ArcCStr::from("5");
+        let other_five = ArcCStr::try_from("5").unwrap();
 
         assert!(ArcCStr::ptr_eq(&five, &same_five));
         assert!(!ArcCStr::ptr_eq(&five, &other_five));
     }
 
     #[test]
+    fn test_from_invalid() {
+        assert!(ArcCStr::try_from("5\05").is_err());
+        assert!(ArcCStr::try_from("5\05".to_string()).is_err());
+        assert!(ArcCStr::try_from(&b"5\05"[..]).is_err());
+    }
+
+    #[test]
+    fn test_back_to_str() {
+        // http://stackoverflow.com/a/3886015/472927
+        assert!(ArcCStr::try_from(&b"a"[..]).unwrap().to_str().is_ok(),
+                "valid ASCII");
+        assert!(ArcCStr::try_from(&b"\xc3\xb1"[..]).unwrap().to_str().is_ok(),
+                "valid 2 Octet Sequence");
+        assert!(ArcCStr::try_from(&b"\xc3\x28"[..]).unwrap().to_str().is_err(),
+                "invalid 2 Octet Sequence");
+        assert!(ArcCStr::try_from(&b"\xa0\xa1"[..]).unwrap().to_str().is_err(),
+                "invalid Sequence Identifier");
+        assert!(ArcCStr::try_from(&b"\xe2\x82\xa1"[..]).unwrap().to_str().is_ok(),
+                "valid 3 Octet Sequence");
+        assert!(ArcCStr::try_from(&b"\xe2\x28\xa1"[..]).unwrap().to_str().is_err(),
+                "invalid 3 Octet Sequence (in 2nd Octet)");
+        assert!(ArcCStr::try_from(&b"\xe2\x82\x28"[..]).unwrap().to_str().is_err(),
+                "invalid 3 Octet Sequence (in 3rd Octet)");
+        assert!(ArcCStr::try_from(&b"\xf0\x90\x8c\xbc"[..]).unwrap().to_str().is_ok(),
+                "valid 4 Octet Sequence");
+        assert!(ArcCStr::try_from(&b"\xf0\x28\x8c\xbc"[..]).unwrap().to_str().is_err(),
+                "invalid 4 Octet Sequence (in 2nd Octet)");
+        assert!(ArcCStr::try_from(&b"\xf0\x90\x28\xbc"[..]).unwrap().to_str().is_err(),
+                "invalid 4 Octet Sequence (in 3rd Octet)");
+        assert!(ArcCStr::try_from(&b"\xf0\x28\x8c\x28"[..]).unwrap().to_str().is_err(),
+                "invalid 4 Octet Sequence (in 4th Octet)");
+    }
+
+    #[test]
     #[cfg(feature = "serde")]
     fn test_serde() {
         use serde_test::{Token, assert_tokens};
-        let five = ArcCStr::from("5");
+        let five = ArcCStr::try_from("5").unwrap();
         assert_tokens(&five, &[Token::Bytes(b"5")]);
-        let non = ArcCStr::from("");
+        let non = ArcCStr::try_from("").unwrap();
         assert_tokens(&non, &[Token::Bytes(b"")]);
     }
 }
