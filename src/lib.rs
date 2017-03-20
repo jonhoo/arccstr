@@ -271,7 +271,7 @@ impl ArcCStr {
     unsafe fn drop_slow(&mut self) {
         atomic::fence(Acquire);
         let blen = self.to_bytes_with_nul().len();
-        heap::deallocate(self.ptr.offset(0),
+        heap::deallocate(self.ptr.offset(0) as *mut _,
                          size_of::<atomic::AtomicUsize>() + blen,
                          align_of::<atomic::AtomicUsize>())
     }
