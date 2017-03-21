@@ -163,22 +163,22 @@ unsafe impl Sync for ArcCStr {}
 
 use std::convert::TryFrom;
 impl<'a> TryFrom<&'a [u8]> for ArcCStr {
-    type Err = FromBytesWithNulError;
-    fn try_from(b: &'a [u8]) -> Result<Self, Self::Err> {
+    type Error = FromBytesWithNulError;
+    fn try_from(b: &'a [u8]) -> Result<Self, Self::Error> {
         unsafe { ArcCStr::from_raw_cstr_no_nul(b) }
     }
 }
 
 impl<'a> TryFrom<&'a str> for ArcCStr {
-    type Err = FromBytesWithNulError;
-    fn try_from(s: &'a str) -> Result<Self, Self::Err> {
+    type Error = FromBytesWithNulError;
+    fn try_from(s: &'a str) -> Result<Self, Self::Error> {
         unsafe { ArcCStr::from_raw_cstr_no_nul(s.as_bytes()) }
     }
 }
 
 impl TryFrom<String> for ArcCStr {
-    type Err = FromBytesWithNulError;
-    fn try_from(s: String) -> Result<Self, Self::Err> {
+    type Error = FromBytesWithNulError;
+    fn try_from(s: String) -> Result<Self, Self::Error> {
         unsafe { ArcCStr::from_raw_cstr_no_nul(s.as_bytes()) }
     }
 }
