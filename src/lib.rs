@@ -640,13 +640,9 @@ impl serde::de::Visitor for ArcCStrVisitor {
     fn visit_bytes<E>(self, v: &[u8]) -> Result<ArcCStr, E>
         where E: serde::de::Error
     {
-        unsafe { ArcCStr::from_raw_cstr_no_nul(v) }
-            .map_err(|_| {
-                serde::de::Error::invalid_value(
-                    serde::de::Unexpected::Bytes(v),
-                    &"a null-terminated, UTF-encoded string with no internal nulls"
-                )
-            })
+        let s = unsafe { ArcCStr::from_raw_cstr_no_nul(v) };
+        let err = "a null-terminated, UTF-encoded string with no internal nulls";
+        s.map_err(|_| serde::de::Error::invalid_value(serde::de::Unexpected::Bytes(v), &err))
     }
 }
 
@@ -676,9 +672,9 @@ mod tests {
         let (tx, rx) = channel();
 
         let _t = thread::spawn(move || {
-            let arc_v: ArcCStr = rx.recv().unwrap();
-            assert_eq!((*arc_v).to_bytes()[3], b'3');
-        });
+                                   let arc_v: ArcCStr = rx.recv().unwrap();
+                                   assert_eq!((*arc_v).to_bytes()[3], b'3');
+                               });
 
         tx.send(arc_v.clone()).unwrap();
 
@@ -720,25 +716,55 @@ mod tests {
         // http://stackoverflow.com/a/3886015/472927
         assert!(ArcCStr::try_from(&b"a"[..]).unwrap().to_str().is_ok(),
                 "valid ASCII");
-        assert!(ArcCStr::try_from(&b"\xc3\xb1"[..]).unwrap().to_str().is_ok(),
+        assert!(ArcCStr::try_from(&b"\xc3\xb1"[..])
+                    .unwrap()
+                    .to_str()
+                    .is_ok(),
                 "valid 2 Octet Sequence");
-        assert!(ArcCStr::try_from(&b"\xc3\x28"[..]).unwrap().to_str().is_err(),
+        assert!(ArcCStr::try_from(&b"\xc3\x28"[..])
+                    .unwrap()
+                    .to_str()
+                    .is_err(),
                 "invalid 2 Octet Sequence");
-        assert!(ArcCStr::try_from(&b"\xa0\xa1"[..]).unwrap().to_str().is_err(),
+        assert!(ArcCStr::try_from(&b"\xa0\xa1"[..])
+                    .unwrap()
+                    .to_str()
+                    .is_err(),
                 "invalid Sequence Identifier");
-        assert!(ArcCStr::try_from(&b"\xe2\x82\xa1"[..]).unwrap().to_str().is_ok(),
+        assert!(ArcCStr::try_from(&b"\xe2\x82\xa1"[..])
+                    .unwrap()
+                    .to_str()
+                    .is_ok(),
                 "valid 3 Octet Sequence");
-        assert!(ArcCStr::try_from(&b"\xe2\x28\xa1"[..]).unwrap().to_str().is_err(),
+        assert!(ArcCStr::try_from(&b"\xe2\x28\xa1"[..])
+                    .unwrap()
+                    .to_str()
+                    .is_err(),
                 "invalid 3 Octet Sequence (in 2nd Octet)");
-        assert!(ArcCStr::try_from(&b"\xe2\x82\x28"[..]).unwrap().to_str().is_err(),
+        assert!(ArcCStr::try_from(&b"\xe2\x82\x28"[..])
+                    .unwrap()
+                    .to_str()
+                    .is_err(),
                 "invalid 3 Octet Sequence (in 3rd Octet)");
-        assert!(ArcCStr::try_from(&b"\xf0\x90\x8c\xbc"[..]).unwrap().to_str().is_ok(),
+        assert!(ArcCStr::try_from(&b"\xf0\x90\x8c\xbc"[..])
+                    .unwrap()
+                    .to_str()
+                    .is_ok(),
                 "valid 4 Octet Sequence");
-        assert!(ArcCStr::try_from(&b"\xf0\x28\x8c\xbc"[..]).unwrap().to_str().is_err(),
+        assert!(ArcCStr::try_from(&b"\xf0\x28\x8c\xbc"[..])
+                    .unwrap()
+                    .to_str()
+                    .is_err(),
                 "invalid 4 Octet Sequence (in 2nd Octet)");
-        assert!(ArcCStr::try_from(&b"\xf0\x90\x28\xbc"[..]).unwrap().to_str().is_err(),
+        assert!(ArcCStr::try_from(&b"\xf0\x90\x28\xbc"[..])
+                    .unwrap()
+                    .to_str()
+                    .is_err(),
                 "invalid 4 Octet Sequence (in 3rd Octet)");
-        assert!(ArcCStr::try_from(&b"\xf0\x28\x8c\x28"[..]).unwrap().to_str().is_err(),
+        assert!(ArcCStr::try_from(&b"\xf0\x28\x8c\x28"[..])
+                    .unwrap()
+                    .to_str()
+                    .is_err(),
                 "invalid 4 Octet Sequence (in 4th Octet)");
     }
 
