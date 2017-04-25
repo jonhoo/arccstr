@@ -629,7 +629,7 @@ impl serde::Serialize for ArcCStr {
 
 struct ArcCStrVisitor;
 
-impl serde::de::Visitor for ArcCStrVisitor {
+impl<'de> serde::de::Visitor<'de> for ArcCStrVisitor {
     type Value = ArcCStr;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -647,9 +647,9 @@ impl serde::de::Visitor for ArcCStrVisitor {
 }
 
 #[cfg(feature = "serde")]
-impl serde::Deserialize for ArcCStr {
+impl<'de> serde::Deserialize<'de> for ArcCStr {
     fn deserialize<D>(deserializer: D) -> Result<ArcCStr, D::Error>
-        where D: serde::Deserializer
+        where D: serde::Deserializer<'de>
     {
         deserializer.deserialize_bytes(ArcCStrVisitor)
     }
