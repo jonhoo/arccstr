@@ -629,7 +629,7 @@ impl serde::Serialize for ArcCStr {
 
 struct ArcCStrVisitor;
 
-impl serde::de::Visitor for ArcCStrVisitor {
+impl<'de> serde::de::Visitor<'de> for ArcCStrVisitor {
     type Value = ArcCStr;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -642,18 +642,18 @@ impl serde::de::Visitor for ArcCStrVisitor {
     {
         unsafe { ArcCStr::from_raw_cstr_no_nul(v) }
             .map_err(|_| {
-                serde::de::Error::invalid_value(
+                                                                serde::de::Error::invalid_value(
                     serde::de::Unexpected::Bytes(v),
                     &"a null-terminated, UTF-encoded string with no internal nulls"
                 )
-            })
+                                                            })
     }
 }
 
 #[cfg(feature = "serde")]
-impl serde::Deserialize for ArcCStr {
+impl<'de> serde::Deserialize<'de> for ArcCStr {
     fn deserialize<D>(deserializer: D) -> Result<ArcCStr, D::Error>
-        where D: serde::Deserializer
+        where D: serde::Deserializer<'de>
     {
         deserializer.deserialize_bytes(ArcCStrVisitor)
     }
@@ -676,9 +676,9 @@ mod tests {
         let (tx, rx) = channel();
 
         let _t = thread::spawn(move || {
-            let arc_v: ArcCStr = rx.recv().unwrap();
-            assert_eq!((*arc_v).to_bytes()[3], b'3');
-        });
+                                   let arc_v: ArcCStr = rx.recv().unwrap();
+                                   assert_eq!((*arc_v).to_bytes()[3], b'3');
+                               });
 
         tx.send(arc_v.clone()).unwrap();
 
