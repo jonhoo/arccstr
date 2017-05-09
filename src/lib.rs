@@ -214,10 +214,10 @@ impl ArcCStr {
         let sz = aus + buf.len() + 1;
 
         let mut s = ptr::Unique::new(heap::allocate(sz, aual));
-        let cstr = s.offset(aus as isize);
+        let cstr = s.as_ptr().offset(aus as isize);
         // initialize the AtomicUsize to 1
         {
-            let atom: &mut atomic::AtomicUsize = mem::transmute(s.get_mut());
+            let atom: &mut atomic::AtomicUsize = mem::transmute(s.as_mut());
             atom.store(1, SeqCst);
         }
         // copy in the string data
@@ -225,7 +225,7 @@ impl ArcCStr {
         // add \0 terminator
         *cstr.offset(buf.len() as isize) = 0u8;
         // and we're all good
-        ArcCStr { ptr: Shared::new(s.offset(0)) }
+        ArcCStr { ptr: Shared::new(s.as_ptr().offset(0)) }
     }
 
     /// Gets the number of pointers to this string.
@@ -263,7 +263,7 @@ impl ArcCStr {
         //  - AtomicUsize is (obviously) Sync, and we're just giving out a &
         //  - We know that the first bit of memory pointer to by self.ptr contains an AtomicUsize
         //
-        unsafe { mem::transmute(self.ptr.as_ref().unwrap()) }
+        unsafe { mem::transmute(self.ptr.as_ptr().as_ref().unwrap()) }
     }
 
     // Non-inlined part of `drop`.
@@ -271,7 +271,7 @@ impl ArcCStr {
     unsafe fn drop_slow(&mut self) {
         atomic::fence(Acquire);
         let blen = self.to_bytes_with_nul().len();
-        heap::deallocate(self.ptr.offset(0) as *mut _,
+        heap::deallocate(self.ptr.as_ptr().offset(0) as *mut _,
                          size_of::<atomic::AtomicUsize>() + blen,
                          align_of::<atomic::AtomicUsize>())
     }
@@ -295,7 +295,7 @@ impl ArcCStr {
     /// assert!(!ArcCStr::ptr_eq(&five, &other_five));
     /// ```
     pub fn ptr_eq(this: &Self, other: &Self) -> bool {
-        unsafe { this.ptr.offset(0) == other.ptr.offset(0) }
+        unsafe { this.ptr.as_ptr().offset(0) == other.ptr.as_ptr().offset(0) }
     }
 }
 
@@ -365,7 +365,7 @@ impl Deref for ArcCStr {
         //    place.
         //
         let aus = size_of::<atomic::AtomicUsize>() as isize;
-        unsafe { CStr::from_ptr(mem::transmute(self.ptr.offset(aus))) }
+        unsafe { CStr::from_ptr(mem::transmute(self.ptr.as_ptr().offset(aus))) }
     }
 }
 
@@ -588,7 +588,7 @@ impl fmt::Debug for ArcCStr {
 
 impl fmt::Pointer for ArcCStr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        fmt::Pointer::fmt(&*self.ptr, f)
+        fmt::Pointer::fmt(&self.ptr.as_ptr(), f)
     }
 }
 
@@ -622,7 +622,7 @@ impl serde::Serialize for ArcCStr {
         // once to find the length, then once more to serialize...
         let aus = size_of::<atomic::AtomicUsize>();
         let len = self.to_bytes().len();
-        let bytes = unsafe { slice::from_raw_parts(self.ptr.offset(aus as isize), len) };
+        let bytes = unsafe { slice::from_raw_parts(self.ptr.as_ptr().offset(aus as isize), len) };
         serializer.serialize_bytes(bytes)
     }
 }
