@@ -435,29 +435,11 @@ impl PartialEq for ArcCStr {
     ///
     /// let five = ArcCStr::try_from("5");
     ///
-    /// assert!(five == ArcCStr::try_from("5"));
+    /// assert_eq!(five, ArcCStr::try_from("5"));
+    /// assert_ne!(five, ArcCStr::try_from("6"));
     /// ```
     fn eq(&self, other: &ArcCStr) -> bool {
         *(*self) == *(*other)
-    }
-
-    /// Inequality for two `ArcCStr`s.
-    ///
-    /// Two `ArcCStr`s are unequal if their inner values are unequal.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// #![feature(try_from)]
-    /// use std::convert::TryFrom;
-    /// use arccstr::ArcCStr;
-    ///
-    /// let five = ArcCStr::try_from("5");
-    ///
-    /// assert!(five != ArcCStr::try_from("6"));
-    /// ```
-    fn ne(&self, other: &ArcCStr) -> bool {
-        *(*self) != *(*other)
     }
 }
 impl PartialOrd for ArcCStr {
