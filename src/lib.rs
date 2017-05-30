@@ -609,8 +609,10 @@ impl serde::Serialize for ArcCStr {
     }
 }
 
+#[cfg(feature = "serde")]
 struct ArcCStrVisitor;
 
+#[cfg(feature = "serde")]
 impl<'de> serde::de::Visitor<'de> for ArcCStrVisitor {
     type Value = ArcCStr;
 
