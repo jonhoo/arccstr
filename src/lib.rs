@@ -225,7 +225,9 @@ impl ArcCStr {
         // add \0 terminator
         *cstr.offset(buf.len() as isize) = 0u8;
         // and we're all good
-        ArcCStr { ptr: Shared::new(s.as_ptr().offset(0)) }
+        ArcCStr {
+            ptr: Shared::new(s.as_ptr().offset(0)),
+        }
     }
 
     /// Gets the number of pointers to this string.
@@ -271,9 +273,11 @@ impl ArcCStr {
     unsafe fn drop_slow(&mut self) {
         atomic::fence(Acquire);
         let blen = self.to_bytes_with_nul().len();
-        heap::deallocate(self.ptr.as_ptr().offset(0) as *mut _,
-                         size_of::<atomic::AtomicUsize>() + blen,
-                         align_of::<atomic::AtomicUsize>())
+        heap::deallocate(
+            self.ptr.as_ptr().offset(0) as *mut _,
+            size_of::<atomic::AtomicUsize>() + blen,
+            align_of::<atomic::AtomicUsize>(),
+        )
     }
 
     #[inline]
@@ -595,7 +599,8 @@ impl AsRef<CStr> for ArcCStr {
 #[cfg(feature = "serde")]
 impl serde::Serialize for ArcCStr {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: serde::Serializer
+    where
+        S: serde::Serializer,
     {
         use std::slice;
 
@@ -622,18 +627,22 @@ impl<'de> serde::de::Visitor<'de> for ArcCStrVisitor {
 
     #[inline]
     fn visit_bytes<E>(self, v: &[u8]) -> Result<ArcCStr, E>
-        where E: serde::de::Error
+    where
+        E: serde::de::Error,
     {
         let s = unsafe { ArcCStr::from_raw_cstr_no_nul(v) };
         let err = "a null-terminated, UTF-encoded string with no internal nulls";
-        s.map_err(|_| serde::de::Error::invalid_value(serde::de::Unexpected::Bytes(v), &err))
+        s.map_err(|_| {
+            serde::de::Error::invalid_value(serde::de::Unexpected::Bytes(v), &err)
+        })
     }
 }
 
 #[cfg(feature = "serde")]
 impl<'de> serde::Deserialize<'de> for ArcCStr {
     fn deserialize<D>(deserializer: D) -> Result<ArcCStr, D::Error>
-        where D: serde::Deserializer<'de>
+    where
+        D: serde::Deserializer<'de>,
     {
         deserializer.deserialize_bytes(ArcCStrVisitor)
     }
@@ -656,9 +665,9 @@ mod tests {
         let (tx, rx) = channel();
 
         let _t = thread::spawn(move || {
-                                   let arc_v: ArcCStr = rx.recv().unwrap();
-                                   assert_eq!((*arc_v).to_bytes()[3], b'3');
-                               });
+            let arc_v: ArcCStr = rx.recv().unwrap();
+            assert_eq!((*arc_v).to_bytes()[3], b'3');
+        });
 
         tx.send(arc_v.clone()).unwrap();
 
@@ -698,58 +707,80 @@ mod tests {
     #[test]
     fn test_back_to_str() {
         // http://stackoverflow.com/a/3886015/472927
-        assert!(ArcCStr::try_from(&b"a"[..]).unwrap().to_str().is_ok(),
-                "valid ASCII");
-        assert!(ArcCStr::try_from(&b"\xc3\xb1"[..])
-                    .unwrap()
-                    .to_str()
-                    .is_ok(),
-                "valid 2 Octet Sequence");
-        assert!(ArcCStr::try_from(&b"\xc3\x28"[..])
-                    .unwrap()
-                    .to_str()
-                    .is_err(),
-                "invalid 2 Octet Sequence");
-        assert!(ArcCStr::try_from(&b"\xa0\xa1"[..])
-                    .unwrap()
-                    .to_str()
-                    .is_err(),
-                "invalid Sequence Identifier");
-        assert!(ArcCStr::try_from(&b"\xe2\x82\xa1"[..])
-                    .unwrap()
-                    .to_str()
-                    .is_ok(),
-                "valid 3 Octet Sequence");
-        assert!(ArcCStr::try_from(&b"\xe2\x28\xa1"[..])
-                    .unwrap()
-                    .to_str()
-                    .is_err(),
-                "invalid 3 Octet Sequence (in 2nd Octet)");
-        assert!(ArcCStr::try_from(&b"\xe2\x82\x28"[..])
-                    .unwrap()
-                    .to_str()
-                    .is_err(),
-                "invalid 3 Octet Sequence (in 3rd Octet)");
-        assert!(ArcCStr::try_from(&b"\xf0\x90\x8c\xbc"[..])
-                    .unwrap()
-                    .to_str()
-                    .is_ok(),
-                "valid 4 Octet Sequence");
-        assert!(ArcCStr::try_from(&b"\xf0\x28\x8c\xbc"[..])
-                    .unwrap()
-                    .to_str()
-                    .is_err(),
-                "invalid 4 Octet Sequence (in 2nd Octet)");
-        assert!(ArcCStr::try_from(&b"\xf0\x90\x28\xbc"[..])
-                    .unwrap()
-                    .to_str()
-                    .is_err(),
-                "invalid 4 Octet Sequence (in 3rd Octet)");
-        assert!(ArcCStr::try_from(&b"\xf0\x28\x8c\x28"[..])
-                    .unwrap()
-                    .to_str()
-                    .is_err(),
-                "invalid 4 Octet Sequence (in 4th Octet)");
+        assert!(
+            ArcCStr::try_from(&b"a"[..]).unwrap().to_str().is_ok(),
+            "valid ASCII"
+        );
+        assert!(
+            ArcCStr::try_from(&b"\xc3\xb1"[..])
+                .unwrap()
+                .to_str()
+                .is_ok(),
+            "valid 2 Octet Sequence"
+        );
+        assert!(
+            ArcCStr::try_from(&b"\xc3\x28"[..])
+                .unwrap()
+                .to_str()
+                .is_err(),
+            "invalid 2 Octet Sequence"
+        );
+        assert!(
+            ArcCStr::try_from(&b"\xa0\xa1"[..])
+                .unwrap()
+                .to_str()
+                .is_err(),
+            "invalid Sequence Identifier"
+        );
+        assert!(
+            ArcCStr::try_from(&b"\xe2\x82\xa1"[..])
+                .unwrap()
+                .to_str()
+                .is_ok(),
+            "valid 3 Octet Sequence"
+        );
+        assert!(
+            ArcCStr::try_from(&b"\xe2\x28\xa1"[..])
+                .unwrap()
+                .to_str()
+                .is_err(),
+            "invalid 3 Octet Sequence (in 2nd Octet)"
+        );
+        assert!(
+            ArcCStr::try_from(&b"\xe2\x82\x28"[..])
+                .unwrap()
+                .to_str()
+                .is_err(),
+            "invalid 3 Octet Sequence (in 3rd Octet)"
+        );
+        assert!(
+            ArcCStr::try_from(&b"\xf0\x90\x8c\xbc"[..])
+                .unwrap()
+                .to_str()
+                .is_ok(),
+            "valid 4 Octet Sequence"
+        );
+        assert!(
+            ArcCStr::try_from(&b"\xf0\x28\x8c\xbc"[..])
+                .unwrap()
+                .to_str()
+                .is_err(),
+            "invalid 4 Octet Sequence (in 2nd Octet)"
+        );
+        assert!(
+            ArcCStr::try_from(&b"\xf0\x90\x28\xbc"[..])
+                .unwrap()
+                .to_str()
+                .is_err(),
+            "invalid 4 Octet Sequence (in 3rd Octet)"
+        );
+        assert!(
+            ArcCStr::try_from(&b"\xf0\x28\x8c\x28"[..])
+                .unwrap()
+                .to_str()
+                .is_err(),
+            "invalid 4 Octet Sequence (in 4th Octet)"
+        );
     }
 
     #[test]
