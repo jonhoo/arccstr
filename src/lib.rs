@@ -57,7 +57,7 @@
 //!
 //! [arc]: struct.ArcCStr.html
 
-#![feature(shared, core_intrinsics, alloc, heap_api, unique, try_from)]
+#![feature(shared, core_intrinsics, alloc, allocator_api, unique, try_from)]
 extern crate alloc;
 
 #[cfg(feature = "serde")]
@@ -65,6 +65,7 @@ extern crate serde;
 #[cfg(all(test, feature = "serde"))]
 extern crate serde_test;
 
+use alloc::allocator::Alloc;
 use std::sync::atomic;
 use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
 use std::borrow;
@@ -78,7 +79,6 @@ use std::ptr::{self, Shared};
 use std::hash::{Hash, Hasher};
 use std::{isize, usize};
 use std::convert::From;
-use alloc::heap;
 
 // Note that much of this code is taken directly from
 
@@ -212,8 +212,13 @@ impl ArcCStr {
         let aus = size_of::<atomic::AtomicUsize>();
         let aual = align_of::<atomic::AtomicUsize>();
         let sz = aus + buf.len() + 1;
+        let aul = alloc::allocator::Layout::from_size_align(sz, aual).unwrap();
 
-        let mut s = ptr::Unique::new(heap::allocate(sz, aual));
+        let mut s = ptr::Unique::new(
+            alloc::heap::Heap
+                .alloc(aul)
+                .expect("could not allocate memory"),
+        );
         let cstr = s.as_ptr().offset(aus as isize);
         // initialize the AtomicUsize to 1
         {
@@ -273,11 +278,11 @@ impl ArcCStr {
     unsafe fn drop_slow(&mut self) {
         atomic::fence(Acquire);
         let blen = self.to_bytes_with_nul().len();
-        heap::deallocate(
-            self.ptr.as_ptr().offset(0) as *mut _,
+        let aul = alloc::allocator::Layout::from_size_align(
             size_of::<atomic::AtomicUsize>() + blen,
             align_of::<atomic::AtomicUsize>(),
-        )
+        ).unwrap();
+        alloc::heap::Heap.dealloc(self.ptr.as_ptr().offset(0) as *mut _, aul)
     }
 
     #[inline]

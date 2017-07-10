@@ -1,6 +1,6 @@
 [package]
 name = "arccstr"
-version = "1.0.0"
+version = "1.0.1"
 
 description = "Thread-safe, reference-counted null-terminated immutable strings."
 readme = "README.md"
