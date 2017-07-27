@@ -218,7 +218,7 @@ impl ArcCStr {
             alloc::heap::Heap
                 .alloc(aul)
                 .expect("could not allocate memory"),
-        );
+        ).unwrap();
         let cstr = s.as_ptr().offset(aus as isize);
         // initialize the AtomicUsize to 1
         {
@@ -231,7 +231,7 @@ impl ArcCStr {
         *cstr.offset(buf.len() as isize) = 0u8;
         // and we're all good
         ArcCStr {
-            ptr: Shared::new(s.as_ptr().offset(0)),
+            ptr: Shared::new(s.as_ptr().offset(0)).unwrap(),
         }
     }
 
