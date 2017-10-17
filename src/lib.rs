@@ -63,6 +63,8 @@ extern crate alloc;
 #[cfg(feature = "serde")]
 extern crate serde;
 #[cfg(all(test, feature = "serde"))]
+extern crate serde_json;
+#[cfg(all(test, feature = "serde"))]
 extern crate serde_test;
 
 use alloc::allocator::Alloc;
@@ -631,6 +633,23 @@ impl<'de> serde::de::Visitor<'de> for ArcCStrVisitor {
     }
 
     #[inline]
+    fn visit_seq<A>(self, mut seq: A) -> Result<ArcCStr, A::Error>
+    where
+        A: serde::de::SeqAccess<'de>,
+    {
+        let mut out = vec![];
+        while let Some(value) = seq.next_element()? {
+            out.push(value);
+        }
+
+        let s = unsafe { ArcCStr::from_raw_cstr_no_nul(&out) };
+        let err = "a null-terminated, UTF-encoded string with no internal nulls";
+        s.map_err(|_| {
+            serde::de::Error::invalid_value(serde::de::Unexpected::Seq, &err)
+        })
+    }
+
+    #[inline]
     fn visit_bytes<E>(self, v: &[u8]) -> Result<ArcCStr, E>
     where
         E: serde::de::Error,
@@ -796,5 +815,15 @@ mod tests {
         assert_tokens(&five, &[Token::Bytes(b"5")]);
         let non = ArcCStr::try_from("").unwrap();
         assert_tokens(&non, &[Token::Bytes(b"")]);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_serde_json() {
+        use serde_json;
+        let original = ArcCStr::try_from("hello").unwrap();
+        let serialized = serde_json::to_string(&original).unwrap();
+        let deserialized: ArcCStr = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(original, deserialized);
     }
 }
