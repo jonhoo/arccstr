@@ -73,7 +73,7 @@ use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
 use std::borrow;
 use std::fmt;
 use std::cmp::Ordering;
-use std::mem::{size_of, align_of};
+use std::mem::{align_of, size_of};
 use std::intrinsics::abort;
 use std::mem;
 use std::ops::Deref;
@@ -644,9 +644,7 @@ impl<'de> serde::de::Visitor<'de> for ArcCStrVisitor {
 
         let s = unsafe { ArcCStr::from_raw_cstr_no_nul(&out) };
         let err = "a null-terminated, UTF-encoded string with no internal nulls";
-        s.map_err(|_| {
-            serde::de::Error::invalid_value(serde::de::Unexpected::Seq, &err)
-        })
+        s.map_err(|_| serde::de::Error::invalid_value(serde::de::Unexpected::Seq, &err))
     }
 
     #[inline]
@@ -656,9 +654,7 @@ impl<'de> serde::de::Visitor<'de> for ArcCStrVisitor {
     {
         let s = unsafe { ArcCStr::from_raw_cstr_no_nul(v) };
         let err = "a null-terminated, UTF-encoded string with no internal nulls";
-        s.map_err(|_| {
-            serde::de::Error::invalid_value(serde::de::Unexpected::Bytes(v), &err)
-        })
+        s.map_err(|_| serde::de::Error::invalid_value(serde::de::Unexpected::Bytes(v), &err))
     }
 }
 
@@ -810,7 +806,7 @@ mod tests {
     #[test]
     #[cfg(feature = "serde")]
     fn test_serde() {
-        use serde_test::{Token, assert_tokens};
+        use serde_test::{assert_tokens, Token};
         let five = ArcCStr::try_from("5").unwrap();
         assert_tokens(&five, &[Token::Bytes(b"5")]);
         let non = ArcCStr::try_from("").unwrap();
