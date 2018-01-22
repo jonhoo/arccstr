@@ -57,6 +57,7 @@
 //!
 //! [arc]: struct.ArcCStr.html
 
+#![feature(ptr_internals)]
 #![feature(shared, core_intrinsics, alloc, allocator_api, unique, try_from)]
 extern crate alloc;
 
@@ -77,12 +78,10 @@ use std::mem::{align_of, size_of};
 use std::intrinsics::abort;
 use std::mem;
 use std::ops::Deref;
-use std::ptr::{self, Shared};
+use std::ptr::{self, NonNull};
 use std::hash::{Hash, Hasher};
 use std::{isize, usize};
 use std::convert::From;
-
-// Note that much of this code is taken directly from
 
 /// A soft limit on the amount of references that may be made to an `ArcCStr`.
 ///
@@ -155,7 +154,7 @@ const MAX_REFCOUNT: usize = (isize::MAX) as usize;
 /// }
 /// ```
 pub struct ArcCStr {
-    ptr: Shared<u8>,
+    ptr: NonNull<u8>,
 }
 
 use std::ffi::FromBytesWithNulError;
@@ -233,7 +232,7 @@ impl ArcCStr {
         *cstr.offset(buf.len() as isize) = 0u8;
         // and we're all good
         ArcCStr {
-            ptr: Shared::new(s.as_ptr().offset(0)).unwrap(),
+            ptr: NonNull::new(s.as_ptr().offset(0)).unwrap(),
         }
     }
 
