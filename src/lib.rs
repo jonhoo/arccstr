@@ -70,19 +70,19 @@ extern crate serde_test;
 
 use alloc::alloc::Opaque;
 use alloc::allocator::Alloc;
-use std::sync::atomic;
-use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
 use std::borrow;
-use std::fmt;
 use std::cmp::Ordering;
-use std::mem::{align_of, size_of};
+use std::convert::From;
+use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::intrinsics::abort;
 use std::mem;
+use std::mem::{align_of, size_of};
 use std::ops::Deref;
 use std::ptr::{self, NonNull};
-use std::hash::{Hash, Hasher};
+use std::sync::atomic;
+use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
 use std::{isize, usize};
-use std::convert::From;
 
 /// A soft limit on the amount of references that may be made to an `ArcCStr`.
 ///
@@ -668,11 +668,11 @@ impl<'de> serde::Deserialize<'de> for ArcCStr {
 
 #[cfg(test)]
 mod tests {
+    use super::ArcCStr;
     use std::clone::Clone;
+    use std::convert::TryFrom;
     use std::sync::mpsc::channel;
     use std::thread;
-    use super::ArcCStr;
-    use std::convert::TryFrom;
 
     #[test]
     #[cfg_attr(target_os = "emscripten", ignore)]
