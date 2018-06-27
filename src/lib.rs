@@ -58,8 +58,9 @@
 //! [arc]: struct.ArcCStr.html
 
 #![feature(ptr_internals)]
+#![feature(rust_2018_preview)]
+#![feature(rust_2018_idioms)]
 #![feature(shared, core_intrinsics, alloc, allocator_api, unique, try_from)]
-extern crate alloc;
 
 #[cfg(feature = "serde")]
 extern crate serde;
@@ -68,8 +69,7 @@ extern crate serde_json;
 #[cfg(all(test, feature = "serde"))]
 extern crate serde_test;
 
-use alloc::alloc::Opaque;
-use alloc::allocator::Alloc;
+use std::alloc::{self, Alloc};
 use std::borrow;
 use std::cmp::Ordering;
 use std::convert::From;
@@ -155,7 +155,7 @@ const MAX_REFCOUNT: usize = (isize::MAX) as usize;
 /// }
 /// ```
 pub struct ArcCStr {
-    ptr: NonNull<Opaque>,
+    ptr: NonNull<u8>,
 }
 
 use std::ffi::FromBytesWithNulError;
@@ -214,12 +214,10 @@ impl ArcCStr {
         let aus = size_of::<atomic::AtomicUsize>();
         let aual = align_of::<atomic::AtomicUsize>();
         let sz = aus + buf.len() + 1;
-        let aul = alloc::allocator::Layout::from_size_align(sz, aual).unwrap();
+        let aul = alloc::Layout::from_size_align(sz, aual).unwrap();
 
-        let mut s = alloc::alloc::Global
-            .alloc(aul)
-            .expect("could not allocate memory");
-        let cstr = (s.as_ptr() as *mut u8).offset(aus as isize);
+        let mut s = alloc::Global.alloc(aul).expect("could not allocate memory");
+        let cstr = (s.as_ptr()).offset(aus as isize);
         // initialize the AtomicUsize to 1
         {
             let atom: &mut atomic::AtomicUsize = mem::transmute(s.as_mut());
@@ -276,11 +274,11 @@ impl ArcCStr {
     unsafe fn drop_slow(&mut self) {
         atomic::fence(Acquire);
         let blen = self.to_bytes_with_nul().len();
-        let aul = alloc::allocator::Layout::from_size_align(
+        let aul = alloc::Layout::from_size_align(
             size_of::<atomic::AtomicUsize>() + blen,
             align_of::<atomic::AtomicUsize>(),
         ).unwrap();
-        alloc::alloc::Global.dealloc(self.ptr, aul)
+        alloc::Global.dealloc(self.ptr, aul)
     }
 
     #[inline]
@@ -372,7 +370,7 @@ impl Deref for ArcCStr {
         //    place.
         //
         let aus = size_of::<atomic::AtomicUsize>() as isize;
-        unsafe { CStr::from_ptr(mem::transmute((self.ptr.as_ptr() as *mut u8).offset(aus))) }
+        unsafe { CStr::from_ptr(mem::transmute((self.ptr.as_ptr()).offset(aus))) }
     }
 }
 
@@ -612,9 +610,7 @@ impl serde::Serialize for ArcCStr {
         // once to find the length, then once more to serialize...
         let aus = size_of::<atomic::AtomicUsize>();
         let len = self.to_bytes().len();
-        let bytes = unsafe {
-            slice::from_raw_parts((self.ptr.as_ptr() as *mut u8).offset(aus as isize), len)
-        };
+        let bytes = unsafe { slice::from_raw_parts((self.ptr.as_ptr()).offset(aus as isize), len) };
         serializer.serialize_bytes(bytes)
     }
 }
