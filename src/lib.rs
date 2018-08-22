@@ -59,8 +59,7 @@
 
 #![feature(ptr_internals)]
 #![feature(rust_2018_preview)]
-#![feature(rust_2018_idioms)]
-#![feature(shared, core_intrinsics, alloc, allocator_api, unique, try_from)]
+#![feature(core_intrinsics, alloc, allocator_api, try_from)]
 
 #[cfg(feature = "serde")]
 extern crate serde;
