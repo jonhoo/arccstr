@@ -57,9 +57,7 @@
 //!
 //! [arc]: struct.ArcCStr.html
 
-#![feature(ptr_internals)]
-#![feature(rust_2018_preview)]
-#![feature(core_intrinsics, alloc, allocator_api, try_from)]
+#![feature(try_from)]
 
 #[cfg(feature = "serde")]
 extern crate serde;
@@ -68,16 +66,16 @@ extern crate serde_json;
 #[cfg(all(test, feature = "serde"))]
 extern crate serde_test;
 
-use std::alloc::{self, Alloc};
+use std::alloc;
 use std::borrow;
 use std::cmp::Ordering;
 use std::convert::From;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::intrinsics::abort;
 use std::mem;
 use std::mem::{align_of, size_of};
 use std::ops::Deref;
+use std::process::abort;
 use std::ptr::{self, NonNull};
 use std::sync::atomic;
 use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
@@ -146,7 +144,7 @@ const MAX_REFCOUNT: usize = (isize::MAX) as usize;
 /// let five = ArcCStr::try_from("5").unwrap();
 ///
 /// for _ in 0..10 {
-///     let five = five.clone();
+///     let five = ArcCStr::clone(&five);
 ///
 ///     thread::spawn(move || {
 ///         println!("{:?}", five);
@@ -215,8 +213,8 @@ impl ArcCStr {
         let sz = aus + buf.len() + 1;
         let aul = alloc::Layout::from_size_align(sz, aual).unwrap();
 
-        let mut s = alloc::Global.alloc(aul).expect("could not allocate memory");
-        let cstr = (s.as_ptr()).offset(aus as isize);
+        let mut s = ptr::NonNull::new(alloc::alloc(aul)).expect("could not allocate memory");
+        let cstr = (s.as_ptr()).add(aus);
         // initialize the AtomicUsize to 1
         {
             let atom: &mut atomic::AtomicUsize = mem::transmute(s.as_mut());
@@ -225,7 +223,7 @@ impl ArcCStr {
         // copy in the string data
         ptr::copy_nonoverlapping(buf.as_ptr(), cstr, buf.len());
         // add \0 terminator
-        *cstr.offset(buf.len() as isize) = 0u8;
+        *cstr.add(buf.len()) = 0u8;
         // and we're all good
         ArcCStr { ptr: s }
     }
@@ -246,7 +244,7 @@ impl ArcCStr {
     /// use arccstr::ArcCStr;
     ///
     /// let five = ArcCStr::try_from("5").unwrap();
-    /// let _also_five = five.clone();
+    /// let _also_five = ArcCStr::clone(&five);
     ///
     /// // This assertion is deterministic because we haven't shared
     /// // the `ArcCStr` between threads.
@@ -276,8 +274,9 @@ impl ArcCStr {
         let aul = alloc::Layout::from_size_align(
             size_of::<atomic::AtomicUsize>() + blen,
             align_of::<atomic::AtomicUsize>(),
-        ).unwrap();
-        alloc::Global.dealloc(self.ptr, aul)
+        )
+        .unwrap();
+        alloc::dealloc(self.ptr.as_mut(), aul)
     }
 
     #[inline]
@@ -292,7 +291,7 @@ impl ArcCStr {
     /// use arccstr::ArcCStr;
     ///
     /// let five = ArcCStr::try_from("5").unwrap();
-    /// let same_five = five.clone();
+    /// let same_five = ArcCStr::clone(&five);
     /// let other_five = ArcCStr::try_from("5").unwrap();
     ///
     /// assert!(ArcCStr::ptr_eq(&five, &same_five));
@@ -317,7 +316,7 @@ impl Clone for ArcCStr {
     ///
     /// let five = ArcCStr::try_from("5").unwrap();
     ///
-    /// five.clone();
+    /// ArcCStr::clone(&five);
     /// ```
     #[inline]
     fn clone(&self) -> ArcCStr {
@@ -344,9 +343,7 @@ impl Clone for ArcCStr {
         // We abort because such a program is incredibly degenerate, and we
         // don't care to support it.
         if old_size > MAX_REFCOUNT {
-            unsafe {
-                abort();
-            }
+            abort();
         }
 
         ArcCStr { ptr: self.ptr }
@@ -368,8 +365,11 @@ impl Deref for ArcCStr {
         //    a null terminator , because we used a valid CStr to construct this arc in the first
         //    place.
         //
-        let aus = size_of::<atomic::AtomicUsize>() as isize;
-        unsafe { CStr::from_ptr(mem::transmute((self.ptr.as_ptr()).offset(aus))) }
+        unsafe {
+            CStr::from_ptr(mem::transmute(
+                (self.ptr.as_ptr()).add(size_of::<atomic::AtomicUsize>()),
+            ))
+        }
     }
 }
 
@@ -387,7 +387,7 @@ impl Drop for ArcCStr {
     /// use arccstr::ArcCStr;
     ///
     /// let foo  = ArcCStr::try_from("foo").unwrap();
-    /// let foo2 = foo.clone();
+    /// let foo2 = ArcCStr::clone(&foo);
     ///
     /// drop(foo);    // "foo" is still in memory
     /// drop(foo2);   // "foo" is deallocated
@@ -609,7 +609,7 @@ impl serde::Serialize for ArcCStr {
         // once to find the length, then once more to serialize...
         let aus = size_of::<atomic::AtomicUsize>();
         let len = self.to_bytes().len();
-        let bytes = unsafe { slice::from_raw_parts((self.ptr.as_ptr()).offset(aus as isize), len) };
+        let bytes = unsafe { slice::from_raw_parts((self.ptr.as_ptr()).add(aus), len) };
         serializer.serialize_bytes(bytes)
     }
 }
