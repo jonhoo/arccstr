@@ -1,6 +1,6 @@
 [package]
 name = "arccstr"
-version = "1.2.2"
+version = "1.2.3"
 
 description = "Thread-safe, reference-counted null-terminated immutable strings."
 readme = "README.md"
@@ -21,6 +21,7 @@ default = ["serde"]
 
 [badges]
 travis-ci = { repository = "jonhoo/arccstr" }
+maintenance = { status = "passively-maintained" }
 
 [dependencies]
 serde = { version = "1.0", optional = true }
