@@ -64,7 +64,6 @@ use std::cmp::Ordering;
 use std::convert::From;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::mem;
 use std::mem::{align_of, size_of};
 use std::ops::Deref;
 use std::process::abort;
@@ -206,8 +205,10 @@ impl ArcCStr {
         let mut s = ptr::NonNull::new(alloc::alloc(aul)).expect("could not allocate memory");
         let cstr = (s.as_ptr()).add(aus);
         // initialize the AtomicUsize to 1
+        // we set the pointer alignment above to be at least that of AtomicUsize
+        #[allow(clippy::cast_ptr_alignment)]
         {
-            let atom: &mut atomic::AtomicUsize = mem::transmute(s.as_mut());
+            let atom: &mut atomic::AtomicUsize = &mut *(s.as_mut() as *mut _ as *mut _);
             atom.store(1, SeqCst);
         }
         // copy in the string data
@@ -251,8 +252,12 @@ impl ArcCStr {
         //  - As long as this arc is alive, we know that the pointer is still valid
         //  - AtomicUsize is (obviously) Sync, and we're just giving out a &
         //  - We know that the first bit of memory pointer to by self.ptr contains an AtomicUsize
+        //  - We know that the pointer is aligned like an AtomicUsize
         //
-        unsafe { mem::transmute(self.ptr.as_ptr().as_ref().unwrap()) }
+        #[allow(clippy::cast_ptr_alignment)]
+        unsafe {
+            &*(self.ptr.as_ptr().as_ref().unwrap() as *const _ as *const _)
+        }
     }
 
     // Non-inlined part of `drop`.
@@ -353,9 +358,7 @@ impl Deref for ArcCStr {
         //    place.
         //
         unsafe {
-            CStr::from_ptr(mem::transmute(
-                (self.ptr.as_ptr()).add(size_of::<atomic::AtomicUsize>()),
-            ))
+            CStr::from_ptr((self.ptr.as_ptr()).add(size_of::<atomic::AtomicUsize>()) as *const _)
         }
     }
 }
