@@ -6,6 +6,7 @@ description = "Thread-safe, reference-counted null-terminated immutable strings.
 readme = "README.md"
 
 authors = ["Jon Gjengset <jon@thesquareplanet.com>"]
+edition = "2018"
 
 documentation = "https://docs.rs/arccstr"
 homepage = "https://github.com/jonhoo/arccstr"
