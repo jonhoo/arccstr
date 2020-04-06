@@ -649,7 +649,7 @@ mod tests {
     use std::thread;
 
     #[test]
-    #[cfg_attr(target_os = "emscripten", ignore)]
+    #[cfg_attr(any(miri, target_os = "emscripten"), ignore)]
     fn manually_share_arc() {
         let v = "0123456789";
         let arc_v = ArcCStr::try_from(v).unwrap();
