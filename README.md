@@ -53,7 +53,4 @@ let s = ArcCStr::from("foobar");
 
 See the [`ArcCStr`][arc] documentation for more details.
 
-Note that this crate requires a nightly build of the compiler as it plays a lot of memory
-tricks.
-
 [arc]: struct.ArcCStr.html
