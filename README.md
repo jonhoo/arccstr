@@ -24,11 +24,13 @@ let s = format!("foobar");
 // CString:
 //  * mostly same as String
 //  * space overhead is 2*usize (uses Box<[u8]> internally)
+//  - cannot contain internal \0 bytes
 use std::ffi::CString;
 let s = CString::new("foobar").unwrap();
 // CStr:
 //  + space overhead is just the pointer (1*usize)
 //  - hard to construct
+//  - cannot contain internal \0 bytes
 //  - generally cannot be shared between threds (lifetime usually not 'static)
 use std::ffi::CStr;
 let s: &CStr = &*s;
@@ -42,13 +44,14 @@ let s: &CStr = &*s;
 //     - pointer to String
 //     - String overhead (3*usize)
 use std::sync::Arc;
-let s = ArcCStr::from(format!("foobar"));
+let s = ArcCStr::try_from(format!("foobar")).unwrap();
 // ArcCStr:
 //  + can be created at runtime
 //  + can be shared between threads
 //  - space overhead is 2*usize (pointer + strong count)
+//  - cannot contain internal \0 bytes
 use arccstr::ArcCStr;
-let s = ArcCStr::from("foobar");
+let s = ArcCStr::try_from("foobar").unwrap();
 ```
 
 See the [`ArcCStr`][arc] documentation for more details.
