@@ -21,7 +21,8 @@ license = "MIT/Apache-2.0"
 default = ["serde"]
 
 [badges]
-travis-ci = { repository = "jonhoo/arccstr" }
+azure-devops = { project = "jonhoo/jonhoo", pipeline = "arccstr", build = "22" }
+codecov = { repository = "jonhoo/arccstr", branch = "master", service = "github" }
 maintenance = { status = "passively-maintained" }
 
 [dependencies]
