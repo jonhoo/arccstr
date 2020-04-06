@@ -4,7 +4,6 @@
 //! The best illustration of this is to go over the alternatives:
 //!
 //! ```rust
-//! #![feature(try_from)]
 //! # use std::convert::TryFrom;
 //! // &str:
 //! //  - content must be known at compile time
@@ -57,7 +56,6 @@
 //!
 //! [arc]: struct.ArcCStr.html
 
-#![feature(try_from)]
 
 #[cfg(feature = "serde")]
 extern crate serde;
@@ -112,7 +110,6 @@ const MAX_REFCOUNT: usize = (isize::MAX) as usize;
 /// syntax:
 ///
 /// ```
-/// #![feature(try_from)]
 /// use arccstr::ArcCStr;
 /// use std::convert::TryFrom;
 /// let mut my_arc = ArcCStr::try_from("foobar").unwrap();
@@ -136,7 +133,6 @@ const MAX_REFCOUNT: usize = (isize::MAX) as usize;
 // (something deadlocks) so we just avoid this entirely by not running these
 // tests.
 /// ```no_run
-/// #![feature(try_from)]
 /// use std::convert::TryFrom;
 /// use arccstr::ArcCStr;
 /// use std::thread;
@@ -239,7 +235,6 @@ impl ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// #![feature(try_from)]
     /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
@@ -286,7 +281,6 @@ impl ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// #![feature(try_from)]
     /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
@@ -310,7 +304,6 @@ impl Clone for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// #![feature(try_from)]
     /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
@@ -382,7 +375,6 @@ impl Drop for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// #![feature(try_from)]
     /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
@@ -433,7 +425,6 @@ impl PartialEq for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// #![feature(try_from)]
     /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
@@ -454,7 +445,6 @@ impl PartialOrd for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// #![feature(try_from)]
     /// use arccstr::ArcCStr;
     /// use std::cmp::Ordering;
     /// use std::convert::TryFrom;
@@ -474,7 +464,6 @@ impl PartialOrd for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// #![feature(try_from)]
     /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
@@ -493,7 +482,6 @@ impl PartialOrd for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// #![feature(try_from)]
     /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
@@ -512,7 +500,6 @@ impl PartialOrd for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// #![feature(try_from)]
     /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
@@ -531,7 +518,6 @@ impl PartialOrd for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// #![feature(try_from)]
     /// use std::convert::TryFrom;
     /// use arccstr::ArcCStr;
     ///
@@ -551,7 +537,6 @@ impl Ord for ArcCStr {
     /// # Examples
     ///
     /// ```
-    /// #![feature(try_from)]
     /// use arccstr::ArcCStr;
     /// use std::cmp::Ordering;
     /// use std::convert::TryFrom;
