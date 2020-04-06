@@ -56,13 +56,7 @@
 //!
 //! [arc]: struct.ArcCStr.html
 
-
-#[cfg(feature = "serde")]
-extern crate serde;
-#[cfg(all(test, feature = "serde"))]
-extern crate serde_json;
-#[cfg(all(test, feature = "serde"))]
-extern crate serde_test;
+#![warn(missing_debug_implementations, missing_docs, rust_2018_idioms)]
 
 use std::alloc;
 use std::borrow;
@@ -552,13 +546,13 @@ impl Ord for ArcCStr {
 impl Eq for ArcCStr {}
 
 impl fmt::Debug for ArcCStr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&**self, f)
     }
 }
 
 impl fmt::Pointer for ArcCStr {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Pointer::fmt(&self.ptr.as_ptr(), f)
     }
 }
@@ -606,7 +600,7 @@ struct ArcCStrVisitor;
 impl<'de> serde::de::Visitor<'de> for ArcCStrVisitor {
     type Value = ArcCStr;
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("a C-style string with no nulls as serialized bytes")
     }
 
