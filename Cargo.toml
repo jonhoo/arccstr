@@ -1,21 +1,16 @@
 [package]
 name = "arccstr"
 version = "1.2.3"
-
-description = "Thread-safe, reference-counted null-terminated immutable strings."
-readme = "README.md"
-
 authors = ["Jon Gjengset <jon@thesquareplanet.com>"]
 edition = "2018"
+license = "MIT OR Apache-2.0"
 
-documentation = "https://docs.rs/arccstr"
-homepage = "https://github.com/jonhoo/arccstr"
+readme = "README.md"
+description = "Thread-safe, reference-counted null-terminated immutable strings."
 repository = "https://github.com/jonhoo/arccstr.git"
 
 keywords = ["strings", "reference-counting", "cstr", "immutability"]
 categories = ["concurrency", "data-structures", "memory-management"]
-
-license = "MIT/Apache-2.0"
 
 [features]
 default = ["serde"]
