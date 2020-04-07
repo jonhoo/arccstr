@@ -44,6 +44,25 @@ let s: &CStr = &*s;
 //     - String overhead (3*usize)
 use std::sync::Arc;
 let s = ArcCStr::try_from(format!("foobar")).unwrap();
+// Arc<str>:
+//  + can be created at runtime
+//  + can be shared between threads
+//  - space overhead is 4*usize:
+//     - pointer to Arc
+//     - str length
+//     - weak count
+//     - strong count
+let s: Arc<str> = Arc::from("foobar");
+// Arc<CStr>:
+//  + can be created at runtime
+//  + can be shared between threads
+//  - space overhead is 4*usize:
+//     - pointer to Arc
+//     - CStr length
+//     - weak count
+//     - strong count
+//  - cannot contain internal \0 bytes
+let s: Arc<CStr> = Arc::from(CStr::from_bytes_with_nul(b"foobar\0").unwrap());
 // ArcCStr:
 //  + can be created at runtime
 //  + can be shared between threads
