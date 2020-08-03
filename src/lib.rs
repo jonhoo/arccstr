@@ -84,8 +84,8 @@ use std::mem::{align_of, size_of};
 use std::ops::Deref;
 use std::process::abort;
 use std::ptr::{self, NonNull};
-use std::sync::atomic;
 use std::sync::atomic::Ordering::{Acquire, Relaxed, Release, SeqCst};
+use std::sync::atomic::{self, AtomicUsize as Aus};
 use std::{isize, usize};
 
 /// A soft limit on the amount of references that may be made to an `ArcCStr`.
@@ -93,6 +93,10 @@ use std::{isize, usize};
 /// Going above this limit will abort your program (although not
 /// necessarily) at _exactly_ `MAX_REFCOUNT + 1` references.
 const MAX_REFCOUNT: usize = (isize::MAX) as usize;
+/// Size of an atomic usize
+const ATOMIC_USIZE_SIZE: usize = size_of::<Aus>();
+/// Alignmentt of an atomic usize
+const ATOMIC_USIZE_ALIGN: usize = align_of::<Aus>();
 
 /// A thread-safe reference-counted null-terminated string.
 ///
@@ -213,19 +217,18 @@ impl ArcCStr {
     }
 
     unsafe fn from_raw_cstr_no_nul_unchecked(buf: &[u8]) -> Self {
-        let aus = size_of::<atomic::AtomicUsize>();
-        let aual = align_of::<atomic::AtomicUsize>();
-        let sz = aus + buf.len() + 1;
-        let aul = alloc::Layout::from_size_align(sz, aual).unwrap();
+        let sz = ATOMIC_USIZE_SIZE + buf.len() + 1;
+        let aul = alloc::Layout::from_size_align_unchecked(sz, ATOMIC_USIZE_ALIGN);
 
         let mut s = ptr::NonNull::new(alloc::alloc(aul)).expect("could not allocate memory");
-        let cstr = (s.as_ptr()).add(aus);
+        let cstr = (s.as_ptr()).add(ATOMIC_USIZE_SIZE);
         // initialize the AtomicUsize to 1
         // we set the pointer alignment above to be at least that of AtomicUsize
         #[allow(clippy::cast_ptr_alignment)]
         {
-            let atom: &mut atomic::AtomicUsize = &mut *(s.as_mut() as *mut _ as *mut _);
-            atom.store(1, SeqCst);
+            // at this point, we own the pointer.
+            let atom: &mut Aus = &mut *(s.as_mut() as *mut _ as *mut _);
+            *atom.get_mut() = 1;
         }
         // copy in the string data
         ptr::copy_nonoverlapping(buf.as_ptr(), cstr, buf.len());
@@ -281,11 +284,9 @@ impl ArcCStr {
     unsafe fn drop_slow(&mut self) {
         atomic::fence(Acquire);
         let blen = self.to_bytes_with_nul().len();
-        let aul = alloc::Layout::from_size_align(
-            size_of::<atomic::AtomicUsize>() + blen,
-            align_of::<atomic::AtomicUsize>(),
-        )
-        .unwrap();
+        let aul = {
+            alloc::Layout::from_size_align_unchecked(ATOMIC_USIZE_SIZE + blen, ATOMIC_USIZE_ALIGN)
+        };
         alloc::dealloc(self.ptr.as_mut(), aul)
     }
 
@@ -373,9 +374,7 @@ impl Deref for ArcCStr {
         //    a null terminator , because we used a valid CStr to construct this arc in the first
         //    place.
         //
-        unsafe {
-            CStr::from_ptr((self.ptr.as_ptr()).add(size_of::<atomic::AtomicUsize>()) as *const _)
-        }
+        unsafe { CStr::from_ptr((self.ptr.as_ptr()).add(ATOMIC_USIZE_SIZE) as *const _) }
     }
 }
 
@@ -605,15 +604,31 @@ impl serde::Serialize for ArcCStr {
         // TODO
         // it's unfortunate that we have to walk the string twice here;
         // once to find the length, then once more to serialize...
-        let aus = size_of::<atomic::AtomicUsize>();
         let len = self.to_bytes().len();
-        let bytes = unsafe { slice::from_raw_parts((self.ptr.as_ptr()).add(aus), len) };
-        serializer.serialize_bytes(bytes)
+        let bytes = unsafe {
+            let ptr = (self.ptr.as_ptr()).add(ATOMIC_USIZE_SIZE);
+            slice::from_raw_parts(ptr, len)
+        };
+        #[cfg(not(feature = "serde_str"))]
+        {
+            serializer.serialize_bytes(bytes)
+        }
+        #[cfg(feature = "serde_str")]
+        {
+            use std::str::from_utf8_unchecked;
+            unsafe {
+                let s = from_utf8_unchecked(bytes);
+                serializer.serialize_str(s)
+            }
+        }
     }
 }
 
 #[cfg(feature = "serde")]
 struct ArcCStrVisitor;
+impl ArcCStrVisitor {
+    const ERR: &'static str = "a null-terminated, UTF-encoded string with no internal nulls";
+}
 
 #[cfg(feature = "serde")]
 impl<'de> serde::de::Visitor<'de> for ArcCStrVisitor {
@@ -628,14 +643,13 @@ impl<'de> serde::de::Visitor<'de> for ArcCStrVisitor {
     where
         A: serde::de::SeqAccess<'de>,
     {
-        let mut out = vec![];
+        let mut out = Vec::with_capacity(seq.size_hint().unwrap_or(8));
         while let Some(value) = seq.next_element()? {
             out.push(value);
         }
 
         let s = unsafe { ArcCStr::from_raw_cstr_no_nul(&out) };
-        let err = "a null-terminated, UTF-encoded string with no internal nulls";
-        s.map_err(|_| serde::de::Error::invalid_value(serde::de::Unexpected::Seq, &err))
+        s.map_err(|_| serde::de::Error::invalid_value(serde::de::Unexpected::Seq, &Self::ERR))
     }
 
     #[inline]
@@ -644,8 +658,18 @@ impl<'de> serde::de::Visitor<'de> for ArcCStrVisitor {
         E: serde::de::Error,
     {
         let s = unsafe { ArcCStr::from_raw_cstr_no_nul(v) };
-        let err = "a null-terminated, UTF-encoded string with no internal nulls";
-        s.map_err(|_| serde::de::Error::invalid_value(serde::de::Unexpected::Bytes(v), &err))
+        s.map_err(|_| serde::de::Error::invalid_value(serde::de::Unexpected::Bytes(v), &Self::ERR))
+    }
+
+    #[cfg(feature = "serde_str")]
+    #[inline]
+    fn visit_str<E>(self, v: &str) -> Result<ArcCStr, E>
+    where
+        E: serde::de::Error,
+    {
+        let bytes = v.as_bytes();
+        let s = unsafe { ArcCStr::from_raw_cstr_no_nul(bytes) };
+        s.map_err(|_| serde::de::Error::invalid_value(serde::de::Unexpected::Str(v), &Self::ERR))
     }
 }
 
@@ -795,13 +819,23 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "serde")]
+    #[cfg(all(feature = "serde", not(feature = "serde_str")))]
     fn test_serde() {
         use serde_test::{assert_tokens, Token};
         let five = ArcCStr::try_from("5").unwrap();
         assert_tokens(&five, &[Token::Bytes(b"5")]);
         let non = ArcCStr::try_from("").unwrap();
         assert_tokens(&non, &[Token::Bytes(b"")]);
+    }
+
+    #[test]
+    #[cfg(all(feature = "serde", feature = "serde_str"))]
+    fn test_serde() {
+        use serde_test::{assert_tokens, Token};
+        let five = ArcCStr::try_from("5").unwrap();
+        assert_tokens(&five, &[Token::Str("5")]);
+        let non = ArcCStr::try_from("").unwrap();
+        assert_tokens(&non, &[Token::Str("")]);
     }
 
     #[test]

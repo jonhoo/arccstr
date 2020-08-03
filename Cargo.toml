@@ -1,6 +1,6 @@
 [package]
 name = "arccstr"
-version = "1.3.0"
+version = "1.4.0"
 authors = ["Jon Gjengset <jon@thesquareplanet.com>"]
 edition = "2018"
 license = "MIT OR Apache-2.0"
@@ -14,6 +14,7 @@ categories = ["concurrency", "data-structures", "memory-management"]
 
 [features]
 default = ["serde"]
+serde_str = ["serde"]
 
 [badges]
 azure-devops = { project = "jonhoo/jonhoo", pipeline = "arccstr", build = "22" }
