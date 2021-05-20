@@ -433,7 +433,8 @@ impl Drop for ArcCStr {
 impl PartialEq for ArcCStr {
     /// Equality for two `ArcCStr`s.
     ///
-    /// Two `ArcCStr`s are equal if their underlying strings are equal.
+    /// Two `ArcCStr`s are equal if they point to the same underlying string or
+    /// their underlying strings are equal
     ///
     /// # Examples
     ///
@@ -447,7 +448,7 @@ impl PartialEq for ArcCStr {
     /// assert_ne!(five, ArcCStr::try_from("6"));
     /// ```
     fn eq(&self, other: &ArcCStr) -> bool {
-        *(*self) == *(*other)
+        ArcCStr::ptr_eq(self, other) || *(*self) == *(*other)
     }
 }
 impl PartialOrd for ArcCStr {
