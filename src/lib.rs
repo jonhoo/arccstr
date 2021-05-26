@@ -433,8 +433,7 @@ impl Drop for ArcCStr {
 impl PartialEq for ArcCStr {
     /// Equality for two `ArcCStr`s.
     ///
-    /// Two `ArcCStr`s are equal if they point to the same underlying string or
-    /// their underlying strings are equal
+    /// Two `ArcCStr`s are equal if their underlying strings are equal.
     ///
     /// # Examples
     ///
