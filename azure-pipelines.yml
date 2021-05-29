@@ -17,7 +17,7 @@ jobs:
            - miri
      - script: cargo miri setup
        displayName: cargo miri setup
-     - script: cargo miri
+     - script: cargo miri test
        displayName: cargo miri test
  - job: asan
    displayName: "Run address sanitizer on test suite"
