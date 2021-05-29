@@ -447,7 +447,7 @@ impl PartialEq for ArcCStr {
     /// assert_ne!(five, ArcCStr::try_from("6"));
     /// ```
     fn eq(&self, other: &ArcCStr) -> bool {
-        *(*self) == *(*other)
+        ArcCStr::ptr_eq(self, other) || *(*self) == *(*other)
     }
 }
 impl PartialOrd for ArcCStr {
