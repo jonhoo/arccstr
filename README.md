@@ -1,7 +1,6 @@
 [![Crates.io](https://img.shields.io/crates/v/arccstr.svg)](https://crates.io/crates/arccstr)
 [![Documentation](https://docs.rs/arccstr/badge.svg)](https://docs.rs/arccstr/)
-[![Build Status](https://dev.azure.com/jonhoo/jonhoo/_apis/build/status/arccstr?branchName=master)](https://dev.azure.com/jonhoo/jonhoo/_build/latest?definitionId=21&branchName=master)
-[![Codecov](https://codecov.io/github/jonhoo/arccstr/coverage.svg?branch=master)](https://codecov.io/gh/jonhoo/arccstr)
+[![Codecov](https://codecov.io/github/jonhoo/arccstr/coverage.svg?branch=main)](https://codecov.io/gh/jonhoo/arccstr)
 
 Thread-safe reference-counted null-terminated strings.
 
