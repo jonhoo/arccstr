@@ -218,19 +218,20 @@ impl ArcCStr {
         let sz = aus + buf.len() + 1;
         let aul = alloc::Layout::from_size_align(sz, aual).unwrap();
 
-        let mut s = ptr::NonNull::new(alloc::alloc(aul)).expect("could not allocate memory");
+        let s = ptr::NonNull::new(alloc::alloc(aul)).expect("could not allocate memory");
         let cstr = (s.as_ptr()).add(aus);
         // initialize the AtomicUsize to 1
         // we set the pointer alignment above to be at least that of AtomicUsize
-        #[allow(clippy::cast_ptr_alignment)]
         {
-            let atom: &mut atomic::AtomicUsize = &mut *(s.as_mut() as *mut _ as *mut _);
-            atom.store(1, SeqCst);
+            std::ptr::write(
+                s.as_ptr() as *mut atomic::AtomicUsize,
+                atomic::AtomicUsize::new(1),
+            );
         }
         // copy in the string data
         ptr::copy_nonoverlapping(buf.as_ptr(), cstr, buf.len());
         // add \0 terminator
-        *cstr.add(buf.len()) = 0u8;
+        std::ptr::write(cstr.add(buf.len()), 0u8);
         // and we're all good
         ArcCStr { ptr: s }
     }
@@ -269,11 +270,9 @@ impl ArcCStr {
         //  - AtomicUsize is (obviously) Sync, and we're just giving out a &
         //  - We know that the first bit of memory pointer to by self.ptr contains an AtomicUsize
         //  - We know that the pointer is aligned like an AtomicUsize
+        //  - Never materialize a reference to `u8` here as this has aliasing implications
         //
-        #[allow(clippy::cast_ptr_alignment)]
-        unsafe {
-            &*(self.ptr.as_ptr().as_ref().unwrap() as *const _ as *const _)
-        }
+        unsafe { &*(self.ptr.as_ptr() as *const atomic::AtomicUsize) }
     }
 
     // Non-inlined part of `drop`.
@@ -286,7 +285,7 @@ impl ArcCStr {
             align_of::<atomic::AtomicUsize>(),
         )
         .unwrap();
-        alloc::dealloc(self.ptr.as_mut(), aul)
+        alloc::dealloc(self.ptr.as_ptr(), aul)
     }
 
     #[inline]
