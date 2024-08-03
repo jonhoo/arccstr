@@ -464,6 +464,7 @@ impl PartialOrd for ArcCStr {
     ///
     /// assert_eq!(Some(Ordering::Less), five.partial_cmp(&ArcCStr::try_from("6").unwrap()));
     /// ```
+    #[allow(clippy::non_canonical_partial_ord_impl)]
     fn partial_cmp(&self, other: &ArcCStr) -> Option<Ordering> {
         (**self).partial_cmp(&**other)
     }
@@ -582,13 +583,13 @@ impl Hash for ArcCStr {
 
 impl borrow::Borrow<CStr> for ArcCStr {
     fn borrow(&self) -> &CStr {
-        &*self
+        self
     }
 }
 
 impl AsRef<CStr> for ArcCStr {
     fn as_ref(&self) -> &CStr {
-        &**self
+        self
     }
 }
 
