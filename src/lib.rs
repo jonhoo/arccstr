@@ -77,7 +77,6 @@
 use std::alloc;
 use std::borrow;
 use std::cmp::Ordering;
-use std::convert::From;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::mem::{align_of, size_of};
