@@ -9,7 +9,7 @@ The best illustration of this is to go over the alternatives:
 
 ```rust
 // &str:
-//  - content must be known at compile time
+//  - content must be known at compile time or leaked for owned use (`&'static str`)
 //  + can be shared between threads
 //  + space overhead is 2*usize (fat pointer to the string)
 let s = "foobar";
@@ -26,7 +26,9 @@ let s = format!("foobar");
 use std::ffi::CString;
 let s = CString::new("foobar").unwrap();
 // CStr:
-//  + space overhead is just the pointer (1*usize)
+//  + space overhead is nominally just the pointer (1*usize),
+//    but in practice it also includes the length at the time of writing:
+//    https://github.com/rust-lang/rust/blob/b27f33a4d9c42ee6b5347a75a8a990a883437da9/library/core/src/ffi/c_str.rs#L104-L107
 //  - hard to construct
 //  - cannot contain internal \0 bytes
 //  - generally cannot be shared between threds (lifetime usually not 'static)
