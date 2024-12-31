@@ -1,6 +1,6 @@
 [![Crates.io](https://img.shields.io/crates/v/arccstr.svg)](https://crates.io/crates/arccstr)
 [![Documentation](https://docs.rs/arccstr/badge.svg)](https://docs.rs/arccstr/)
-[![Codecov](https://codecov.io/github/jonhoo/arccstr/coverage.svg?branch=main)](https://codecov.io/gh/jonhoo/arccstr)
+[![codecov](https://codecov.io/gh/jonhoo/arccstr/graph/badge.svg?token=u9prymEBhI)](https://codecov.io/gh/jonhoo/arccstr)
 
 Thread-safe reference-counted null-terminated strings.
 
